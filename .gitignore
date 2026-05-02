@@ -1,0 +1,22 @@
+# credenciais — nunca no repositório
+.env
+
+# dados brutos — podem ser grandes
+data/raw/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.idea/
+.vscode/
+
+# Docker volumes locais
+minio_data/

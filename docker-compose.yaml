@@ -1,0 +1,138 @@
+version: "3.9"
+
+# ─────────────────────────────────────────
+#  NASA NeoWs Pipeline — camada de ingestão
+#  Stack: Airflow + MinIO (bronze)
+# ─────────────────────────────────────────
+
+networks:
+  pipeline-net:
+
+volumes:
+  minio_data:
+  airflow_db:
+
+services:
+
+ 
+  #  MinIO — object storage local
+  #  equivalente ao S3 da AWS
+  
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    networks: [pipeline-net]
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  
+  #  minio-mc — cria os buckets na primeira inicialização
+  #  bronze: dado bruto da API (JSON original)
+  #  silver: dado normalizado (próxima etapa)
+  #  gold:   agregações analíticas (etapa futura)
+ 
+  minio-mc:
+    image: minio/mc:latest
+    container_name: minio-mc
+    networks: [pipeline-net]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+        mc mb -p local/bronze || true &&
+        mc mb -p local/silver || true &&
+        mc mb -p local/gold   || true &&
+        echo '>>> Buckets criados: bronze, silver, gold'
+      "
+
+  
+  #  PostgreSQL — banco de metadados
+  #  do Airflow (não armazena dado algum
+  #  do pipeline, só estado das DAGs)
+
+  airflow-db:
+    image: postgres:16
+    container_name: airflow-db
+    networks: [pipeline-net]
+    environment:
+      POSTGRES_USER:     airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB:       airflow
+    volumes:
+      - airflow_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  #  Airflow — orquestração dos batches diários
+  #
+  #  IMPORTANTE: webserver e scheduler rodam no mesmo
+  #  container via start.sh (aceitável para dev/portfólio).
+  #  Em produção seriam containers separados.
+  #
+  #  O start.sh faz na ordem certa:
+  #    1. Aguarda o banco ficar saudável
+  #    2. airflow db migrate  (cria/atualiza schema)
+  #    3. airflow users create (cria admin se não existir)
+  #    4. sobe scheduler em background
+  #    5. sobe webserver em foreground
+ 
+  airflow:
+    image: apache/airflow:2.10.5
+    container_name: airflow
+    networks: [pipeline-net]
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    user: "50000:0"
+    environment:
+      # core
+      AIRFLOW__CORE__EXECUTOR:            LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES:       "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG:  "true"
+
+      # banco de metadados
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+
+      # admin criado pelo start.sh
+      AIRFLOW_ADMIN_USER:     ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      AIRFLOW_ADMIN_EMAIL:    ${AIRFLOW_ADMIN_EMAIL}
+
+      # credenciais que os DAGs vão usar
+      NASA_API_KEY:    ${NASA_API_KEY}
+      MINIO_ENDPOINT:  "http://minio:9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags      # seus DAGs
+      - ./airflow/start.sh:/start.sh          # script de boot
+      - ./src:/opt/airflow/src                # código de ingestão
+    command:
+      - bash
+      - /start.sh
