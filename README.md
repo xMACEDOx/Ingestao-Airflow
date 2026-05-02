@@ -1,2 +1,2 @@
 # Ingestao-Airbyte
-Esse repositório foi criado para estudar a ferramenta de ingestão na nuvem 
+Esse repositório foi criado para estudar a ferramenta de ingestão na nuvem airflow com python
