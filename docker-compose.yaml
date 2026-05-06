@@ -107,7 +107,7 @@ services:
       minio:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8085:8080"
     user: "50000:0"
     environment:
       # core
