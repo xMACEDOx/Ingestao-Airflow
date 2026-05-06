@@ -183,14 +183,6 @@ nasa-neows-pipeline/
 │       ├── storage.py               # MinioStorage — upload + idempotência
 │       └── pipeline.py              # Orquestra client + storage
 │
-├── tests/
-│   ├── __init__.py
-│   └── ingestion/
-│       ├── __init__.py
-│       ├── test_client.py           # 12 testes — HTTP, retry, timeout
-│       ├── test_storage.py          # 13 testes — upload, idempotência
-│       └── test_pipeline.py         # 26 testes — janelas, orquestração
-│
 └── data/
     └── (ignorado pelo git)
 ```
@@ -208,7 +200,7 @@ Antes de começar, certifique-se de ter instalado:
 
 ---
 
-## ⚙️ Configuração do Ambiente
+## Configuração do Ambiente
 
 ### 1. Clone o repositório
 
