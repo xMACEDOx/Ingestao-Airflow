@@ -574,5 +574,5 @@ Este repositório cobre a **camada de ingestão (bronze)**. O roadmap completo d
 
 ##  Autor
 
-Desenvolvido como projeto de portfólio de engenharia de dados — demonstrando práticas de engenharia de dados aplicadas a pipelines de dados: responsabilidade única, testabilidade, idempotência e portabilidade para cloud.
+Desenvolvido como projeto de portfólio de engenharia de dados — demonstrando práticas de engenharia de dados aplicadas a pipelines de software: responsabilidade única, testabilidade, idempotência e portabilidade para cloud.
 
